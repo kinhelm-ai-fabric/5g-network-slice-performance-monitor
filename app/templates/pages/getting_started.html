@@ -1,0 +1,123 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Getting Started — {{ app_name }}{% endblock %}
+{% block body_class %}page-account{% endblock %}
+
+{% block help_title %}Getting Started Help{% endblock %}
+{% block help_content %}
+<p>This page walks you through setting up and using the 5G Slice Monitor.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Getting Started</h1>
+    <p class="page-subtitle">Set up and start monitoring your 5G network slices</p>
+</div>
+
+<!-- Quick nav -->
+<div class="quick-nav">
+    <a href="#step-1" class="quick-nav-link">1. Overview</a>
+    <a href="#step-2" class="quick-nav-link">2. Prerequisites</a>
+    <a href="#step-3" class="quick-nav-link">3. First Launch</a>
+    <a href="#step-4" class="quick-nav-link">4. Add Slices</a>
+    <a href="#step-5" class="quick-nav-link">5. Collect Metrics</a>
+    <a href="#step-6" class="quick-nav-link">6. AI Analysis</a>
+    <a href="#step-7" class="quick-nav-link">7. Next Steps</a>
+</div>
+
+<!-- Step 1 -->
+<div id="step-1" class="step-card">
+    <div class="step-badge">1</div>
+    <div class="step-body">
+        <h2>What Is This App?</h2>
+        <p>The <strong>5G Network Slice Performance Monitor</strong> tracks and analyzes performance metrics for 5G network slices. It monitors latency, throughput, packet loss, and jitter against configurable SLA targets. An integrated AI agent provides health assessments and actionable recommendations.</p>
+        <p>Supported slice types:</p>
+        <ul>
+            <li><strong>eMBB</strong> — Enhanced Mobile Broadband (high throughput for video, AR/VR)</li>
+            <li><strong>URLLC</strong> — Ultra-Reliable Low-Latency Communications (factory automation, remote surgery)</li>
+            <li><strong>mMTC</strong> — Massive Machine-Type Communications (IoT sensors, smart grids)</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Step 2 -->
+<div id="step-2" class="step-card">
+    <div class="step-badge">2</div>
+    <div class="step-body">
+        <h2>Prerequisites</h2>
+        <ul>
+            <li>Docker and Docker Compose (for containerized deployment)</li>
+            <li>Python 3.11+ (for local development)</li>
+            <li>(Optional) A <a href="https://app.kindo.ai" target="_blank" rel="noopener">Kindo</a> API key and agent ID for AI-powered analysis</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Step 3 -->
+<div id="step-3" class="step-card">
+    <div class="step-badge">3</div>
+    <div class="step-body">
+        <h2>First Launch</h2>
+        <p>Using Docker:</p>
+        <pre><code>docker compose up --build</code></pre>
+        <p>For local development:</p>
+        <pre><code>pip install -r requirements.txt
+python -m flask --app wsgi:app run --port 8000</code></pre>
+        <p>Open <a href="http://localhost:8000">http://localhost:8000</a> in your browser. The app will seed three sample network slices on first launch.</p>
+    </div>
+</div>
+
+<!-- Step 4 -->
+<div id="step-4" class="step-card">
+    <div class="step-badge">4</div>
+    <div class="step-body">
+        <h2>Add Network Slices</h2>
+        <p>Navigate to <a href="{{ url_for('main.slices_list') }}">Slices</a> and use the form at the bottom to add a new slice. Set SLA targets for latency (ms), throughput (Mbps), and availability (%). Or use the REST API:</p>
+        <pre><code>curl -X POST http://localhost:8000/api/slices \
+  -H "Content-Type: application/json" \
+  -d '{"name":"eMBB Downtown","type":"eMBB","sla_latency_ms":15,"sla_throughput_mbps":200}'</code></pre>
+    </div>
+</div>
+
+<!-- Step 5 -->
+<div id="step-5" class="step-card">
+    <div class="step-badge">5</div>
+    <div class="step-body">
+        <h2>Collect Metrics</h2>
+        <p>Submit performance measurements through the slice detail page or via the API:</p>
+        <pre><code>curl -X POST http://localhost:8000/api/metrics \
+  -H "Content-Type: application/json" \
+  -d '{"slice_id":"slice-embb-001","latency_ms":12.5,"throughput_mbps":95,"packet_loss_pct":0.02}'</code></pre>
+        <p>The dashboard will update automatically to show SLA compliance status.</p>
+    </div>
+</div>
+
+<!-- Step 6 -->
+<div id="step-6" class="step-card">
+    <div class="step-badge">6</div>
+    <div class="step-body">
+        <h2>AI-Powered Analysis</h2>
+        <p>Click <strong>Analyze</strong> on any slice card or detail page to get a health score and recommendations. The analysis works out of the box with a local heuristic engine. For more advanced analysis, configure the Kindo AI agent:</p>
+        <ol>
+            <li>Set <code>KINDO_API_KEY</code> in your environment</li>
+            <li>Set <code>KINDO_SLICE_PERFORMANCE_AGENT_ID</code> to your deployed agent ID</li>
+        </ol>
+        <p>See the <code>agent/</code> directory for agent configuration files.</p>
+    </div>
+</div>
+
+<!-- Step 7 -->
+<div id="step-7" class="step-card">
+    <div class="step-badge">7</div>
+    <div class="step-body">
+        <h2>Next Steps</h2>
+        <ul>
+            <li>Integrate your network monitoring tools to push metrics via the REST API</li>
+            <li>Set up scheduled metric collection using cron or an external orchestrator</li>
+            <li>Configure alerting thresholds per slice type</li>
+            <li>Review the <a href="{{ url_for('main.analytics') }}">Analytics</a> page for trend analysis</li>
+        </ul>
+        <p>Need help? Use the <strong>?</strong> button in the navigation bar on any page for context-specific guidance.</p>
+    </div>
+</div>
+{% endblock %}

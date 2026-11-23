@@ -1,0 +1,164 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Dashboard — {{ app_name }}{% endblock %}
+
+{% block help_title %}Dashboard Help{% endblock %}
+{% block help_content %}
+<p>The <strong>Dashboard</strong> gives you a real-time overview of all 5G network slices and their performance against SLA targets.</p>
+<ul>
+    <li><strong>Health Score:</strong> A 0–100 score computed from latency, throughput, and packet loss vs. SLA targets.</li>
+    <li><strong>Status Cards:</strong> Each card shows one slice with its current key metrics.</li>
+    <li><strong>Quick Actions:</strong> Click a card to view detailed metrics, or use <em>Analyze</em> to get an AI assessment.</li>
+</ul>
+<p>Add new metrics via the API or the slice detail page to keep the dashboard up to date.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="page-subtitle">5G Network Slice Performance Overview</p>
+</div>
+
+<!-- Summary cards -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ slices | length }}</div>
+        <div class="stat-label">Total Slices</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ summaries | selectattr('sla_latency_ok', 'equalto', true) | list | length }}</div>
+        <div class="stat-label">Latency OK</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ summaries | selectattr('sla_throughput_ok', 'equalto', true) | list | length }}</div>
+        <div class="stat-label">Throughput OK</div>
+    </div>
+    <div class="stat-card stat-card-accent">
+        <div class="stat-value">{{ summaries | selectattr('metric_count', 'greaterthan', 0) | list | length }}</div>
+        <div class="stat-label">With Metrics</div>
+    </div>
+</div>
+
+<!-- Slice cards -->
+<h2 class="section-title">Network Slices</h2>
+{% if summaries %}
+<div class="card-grid">
+    {% for s in summaries %}
+    <div class="slice-card" data-status="{{ s.slice.status }}">
+        <div class="slice-card-header">
+            <span class="slice-type-badge badge-{{ s.slice.type | lower }}">{{ s.slice.type }}</span>
+            <span class="slice-status-dot status-{{ s.slice.status }}"></span>
+        </div>
+        <h3 class="slice-card-title">
+            <a href="{{ url_for('main.slice_detail', slice_id=s.slice.id) }}">{{ s.slice.name }}</a>
+        </h3>
+        <p class="slice-card-desc">{{ s.slice.description }}</p>
+        <div class="slice-metrics-preview">
+            <div class="metric-mini">
+                <span class="metric-label">Avg Latency</span>
+                <span class="metric-value {% if s.sla_latency_ok == false %}metric-warn{% endif %}">
+                    {{ s.avg_latency_ms if s.avg_latency_ms is not none else '—' }}
+                    {% if s.avg_latency_ms is not none %}ms{% endif %}
+                </span>
+                <span class="metric-sla">SLA: {{ s.slice.sla_latency_ms }} ms</span>
+            </div>
+            <div class="metric-mini">
+                <span class="metric-label">Avg Throughput</span>
+                <span class="metric-value {% if s.sla_throughput_ok == false %}metric-warn{% endif %}">
+                    {{ s.avg_throughput_mbps if s.avg_throughput_mbps is not none else '—' }}
+                    {% if s.avg_throughput_mbps is not none %}Mbps{% endif %}
+                </span>
+                <span class="metric-sla">SLA: {{ s.slice.sla_throughput_mbps }} Mbps</span>
+            </div>
+            <div class="metric-mini">
+                <span class="metric-label">Packet Loss</span>
+                <span class="metric-value">
+                    {{ s.avg_packet_loss_pct if s.avg_packet_loss_pct is not none else '—' }}
+                    {% if s.avg_packet_loss_pct is not none %}%{% endif %}
+                </span>
+            </div>
+        </div>
+        <div class="slice-card-actions">
+            <a href="{{ url_for('main.slice_detail', slice_id=s.slice.id) }}" class="btn btn-sm">View Details</a>
+            <button class="btn btn-sm btn-secondary" onclick="analyzeSlice('{{ s.slice.id }}')">Analyze</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No slices configured yet. <a href="{{ url_for('main.getting_started') }}">Get started</a> to learn how to add network slices.</p>
+</div>
+{% endif %}
+
+<!-- Analysis result modal -->
+<div id="analysis-modal" class="modal" style="display:none;">
+    <div class="modal-backdrop" onclick="closeAnalysisModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Slice Performance Analysis</h3>
+            <button class="help-close-btn" onclick="closeAnalysisModal()">&times;</button>
+        </div>
+        <div id="analysis-body" class="modal-body">
+            <p>Running analysis...</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function _basePath() {
+    var m = window.location.pathname.match(/^(\/preview\/[^/]+)/);
+    return m ? m[1] : '';
+}
+
+function analyzeSlice(sliceId) {
+    var modal = document.getElementById('analysis-modal');
+    var body = document.getElementById('analysis-body');
+    modal.style.display = 'flex';
+    body.innerHTML = '<p class="loading">Running analysis...</p>';
+
+    fetch(_basePath() + '/api/slices/' + sliceId + '/analyze', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                body.innerHTML = '<p class="error-text">' + data.error + '</p>';
+                return;
+            }
+            var html = '<div class="analysis-result">';
+            if (data.health_score !== null && data.health_score !== undefined) {
+                html += '<div class="health-score score-' + (data.health_score >= 70 ? 'good' : data.health_score >= 50 ? 'warn' : 'bad') + '">';
+                html += '<span class="score-num">' + data.health_score + '</span><span class="score-label">Health Score</span></div>';
+            }
+            if (data.assessment) {
+                html += '<p class="assessment">' + data.assessment + '</p>';
+            }
+            if (data.alerts && data.alerts.length) {
+                html += '<h4>Alerts</h4><ul class="alert-list">';
+                data.alerts.forEach(function(a) {
+                    html += '<li class="alert-item alert-' + a.severity + '">' + a.message + '</li>';
+                });
+                html += '</ul>';
+            }
+            if (data.recommendations && data.recommendations.length) {
+                html += '<h4>Recommendations</h4><ul>';
+                data.recommendations.forEach(function(r) {
+                    html += '<li>' + r + '</li>';
+                });
+                html += '</ul>';
+            }
+            html += '</div>';
+            body.innerHTML = html;
+        })
+        .catch(function(err) {
+            body.innerHTML = '<p class="error-text">Analysis failed: ' + err.message + '</p>';
+        });
+}
+
+function closeAnalysisModal() {
+    document.getElementById('analysis-modal').style.display = 'none';
+}
+</script>
+{% endblock %}

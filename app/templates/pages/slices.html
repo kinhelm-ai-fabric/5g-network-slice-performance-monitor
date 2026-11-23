@@ -1,0 +1,137 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Network Slices — {{ app_name }}{% endblock %}
+
+{% block help_title %}Network Slices Help{% endblock %}
+{% block help_content %}
+<p>The <strong>Slices</strong> page lists all configured 5G network slices.</p>
+<ul>
+    <li><strong>Slice Types:</strong> eMBB (enhanced Mobile Broadband), URLLC (Ultra-Reliable Low-Latency), mMTC (massive Machine-Type Communications).</li>
+    <li><strong>Status:</strong> Active slices are currently running. Inactive slices are paused or decommissioned.</li>
+    <li><strong>Add Slice:</strong> Use the form at the bottom to add a new slice with custom SLA targets.</li>
+    <li><strong>Click a slice name</strong> to view its detailed metrics and run an AI analysis.</li>
+</ul>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Network Slices</h1>
+    <p class="page-subtitle">Manage and monitor all configured 5G slices</p>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>SLA Latency</th>
+                <th>SLA Throughput</th>
+                <th>SLA Availability</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for s in slices %}
+            <tr>
+                <td><a href="{{ url_for('main.slice_detail', slice_id=s.id) }}">{{ s.name }}</a></td>
+                <td><span class="slice-type-badge badge-{{ s.type | lower }}">{{ s.type }}</span></td>
+                <td><span class="slice-status-dot status-{{ s.status }}"></span> {{ s.status }}</td>
+                <td>{{ s.sla_latency_ms }} ms</td>
+                <td>{{ s.sla_throughput_mbps }} Mbps</td>
+                <td>{{ s.sla_availability_pct }}%</td>
+                <td>
+                    <a href="{{ url_for('main.slice_detail', slice_id=s.id) }}" class="btn btn-sm">View</a>
+                    <button class="btn btn-sm btn-danger" onclick="deleteSlice('{{ s.id }}')">Delete</button>
+                </td>
+            </tr>
+        {% endfor %}
+        {% if not slices %}
+            <tr><td colspan="7" class="empty-cell">No slices configured.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<h2 class="section-title">Add New Slice</h2>
+<form id="add-slice-form" class="form-card" onsubmit="return addSlice(event)">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="slice-name">Name</label>
+            <input type="text" id="slice-name" name="name" required placeholder="e.g. eMBB Downtown">
+        </div>
+        <div class="form-group">
+            <label for="slice-type">Type</label>
+            <select id="slice-type" name="type">
+                <option value="eMBB">eMBB</option>
+                <option value="URLLC">URLLC</option>
+                <option value="mMTC">mMTC</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="sla-latency">SLA Latency (ms)</label>
+            <input type="number" id="sla-latency" name="sla_latency_ms" value="10" min="0" step="0.1">
+        </div>
+        <div class="form-group">
+            <label for="sla-throughput">SLA Throughput (Mbps)</label>
+            <input type="number" id="sla-throughput" name="sla_throughput_mbps" value="50" min="0" step="1">
+        </div>
+        <div class="form-group">
+            <label for="sla-availability">SLA Availability (%)</label>
+            <input type="number" id="sla-availability" name="sla_availability_pct" value="99.9" min="0" max="100" step="0.001">
+        </div>
+    </div>
+    <div class="form-group">
+        <label for="slice-desc">Description</label>
+        <textarea id="slice-desc" name="description" rows="2" placeholder="Brief description of this slice..."></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Slice</button>
+    <span id="add-slice-msg" class="form-msg"></span>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function _basePath() {
+    var m = window.location.pathname.match(/^(\/preview\/[^/]+)/);
+    return m ? m[1] : '';
+}
+
+function addSlice(e) {
+    e.preventDefault();
+    var form = document.getElementById('add-slice-form');
+    var msg = document.getElementById('add-slice-msg');
+    var data = {
+        name: form.querySelector('[name=name]').value,
+        type: form.querySelector('[name=type]').value,
+        sla_latency_ms: parseFloat(form.querySelector('[name=sla_latency_ms]').value),
+        sla_throughput_mbps: parseFloat(form.querySelector('[name=sla_throughput_mbps]').value),
+        sla_availability_pct: parseFloat(form.querySelector('[name=sla_availability_pct]').value),
+        description: form.querySelector('[name=description]').value
+    };
+    fetch(_basePath() + '/api/slices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (resp.error) { msg.textContent = resp.error; msg.className = 'form-msg error'; }
+        else { window.location.reload(); }
+    })
+    .catch(function(err) { msg.textContent = 'Error: ' + err.message; msg.className = 'form-msg error'; });
+    return false;
+}
+
+function deleteSlice(id) {
+    if (!confirm('Delete this slice and all its metrics?')) return;
+    fetch(_basePath() + '/api/slices/' + id, { method: 'DELETE' })
+        .then(function() { window.location.reload(); });
+}
+</script>
+{% endblock %}

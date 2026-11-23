@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ session.get('theme', 'light') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+    <!-- Help panel overlay -->
+    <div id="help-overlay" class="help-overlay" onclick="closeHelp()"></div>
+    <div id="help-panel" class="help-panel">
+        <div class="help-panel-header">
+            <h3>{% block help_title %}Page Help{% endblock %}</h3>
+            <button class="help-close-btn" onclick="closeHelp()" aria-label="Close help">&times;</button>
+        </div>
+        <div class="help-panel-body">
+            {% block help_content %}<p>No help content available for this page.</p>{% endblock %}
+        </div>
+    </div>
+
+    <!-- Top navigation -->
+    <nav class="top-nav">
+        <div class="nav-brand">
+            <svg class="nav-logo" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/>
+                <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/>
+                <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/>
+                <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <a href="{{ url_for('main.dashboard') }}" class="nav-brand-text">{{ app_name }}</a>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('main.slices_list') }}" class="nav-link {% if request.endpoint == 'main.slices_list' %}active{% endif %}">Slices</a>
+            <a href="{{ url_for('main.analytics') }}" class="nav-link {% if request.endpoint == 'main.analytics' %}active{% endif %}">Analytics</a>
+            <a href="{{ url_for('main.getting_started') }}" class="nav-link {% if request.endpoint == 'main.getting_started' %}active{% endif %}">Getting Started</a>
+        </div>
+        <div class="nav-actions">
+            <button class="btn-icon" onclick="openHelp()" title="Page help" aria-label="Help">?</button>
+            <button class="btn-icon theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                <span class="theme-icon-light">☀️</span>
+                <span class="theme-icon-dark">🌙</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p>&copy; 2026 5G Slice Monitor &middot; Powered by <a href="https://kinhelm.com" target="_blank" rel="noopener">KinHelm</a></p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

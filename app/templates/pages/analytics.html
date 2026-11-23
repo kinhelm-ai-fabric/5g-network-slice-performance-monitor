@@ -1,0 +1,145 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Analytics — {{ app_name }}{% endblock %}
+
+{% block help_title %}Analytics Help{% endblock %}
+{% block help_content %}
+<p>The <strong>Analytics</strong> page shows aggregated performance data across all slices.</p>
+<ul>
+    <li><strong>Slice Selector:</strong> Choose a slice to view its performance trends.</li>
+    <li><strong>Chart:</strong> Displays recent latency, throughput, and packet-loss readings over time.</li>
+    <li><strong>AI Analysis:</strong> Click Analyze to get an assessment from the Kindo AI agent.</li>
+</ul>
+<p>Add more metrics via the API or the slice detail page to populate the charts.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Analytics</h1>
+    <p class="page-subtitle">Performance trends and slice comparison</p>
+</div>
+
+<div class="form-card">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="analytics-slice">Select Slice</label>
+            <select id="analytics-slice" onchange="loadAnalytics()">
+                <option value="">— Choose a slice —</option>
+                {% for s in slices %}
+                <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="align-self:flex-end;">
+            <button class="btn btn-primary" onclick="loadAnalytics()">Refresh</button>
+        </div>
+    </div>
+</div>
+
+<div id="analytics-content" style="display:none;">
+    <h2 class="section-title">Recent Metrics</h2>
+    <div id="chart-area" class="chart-container">
+        <canvas id="metrics-chart" width="800" height="300"></canvas>
+    </div>
+
+    <h2 class="section-title">Summary</h2>
+    <div id="analytics-summary" class="stats-row"></div>
+</div>
+
+<div id="analytics-empty" class="empty-state">
+    <p>Select a slice above to view analytics.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function _basePath() {
+    var m = window.location.pathname.match(/^(\/preview\/[^/]+)/);
+    return m ? m[1] : '';
+}
+
+function loadAnalytics() {
+    var sliceId = document.getElementById('analytics-slice').value;
+    if (!sliceId) {
+        document.getElementById('analytics-content').style.display = 'none';
+        document.getElementById('analytics-empty').style.display = 'block';
+        return;
+    }
+
+    document.getElementById('analytics-content').style.display = 'block';
+    document.getElementById('analytics-empty').style.display = 'none';
+
+    fetch(_basePath() + '/api/metrics?slice_id=' + sliceId + '&limit=50')
+        .then(function(r) { return r.json(); })
+        .then(function(metrics) {
+            drawChart(metrics);
+        });
+
+    fetch(_basePath() + '/api/slices/' + sliceId + '/summary')
+        .then(function(r) { return r.json(); })
+        .then(function(s) {
+            var html = '';
+            html += '<div class="stat-card"><div class="stat-value">' + (s.avg_latency_ms !== null ? s.avg_latency_ms : '—') + '</div><div class="stat-label">Avg Latency (ms)</div></div>';
+            html += '<div class="stat-card"><div class="stat-value">' + (s.avg_throughput_mbps !== null ? s.avg_throughput_mbps : '—') + '</div><div class="stat-label">Avg Throughput (Mbps)</div></div>';
+            html += '<div class="stat-card"><div class="stat-value">' + (s.avg_packet_loss_pct !== null ? s.avg_packet_loss_pct : '—') + '</div><div class="stat-label">Avg Packet Loss (%)</div></div>';
+            html += '<div class="stat-card"><div class="stat-value">' + s.metric_count + '</div><div class="stat-label">Total Measurements</div></div>';
+            document.getElementById('analytics-summary').innerHTML = html;
+        });
+}
+
+function drawChart(metrics) {
+    var canvas = document.getElementById('metrics-chart');
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (!metrics.length) {
+        ctx.fillStyle = 'var(--color-text-muted, #6B8FA8)';
+        ctx.font = '14px Archivo, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No metrics data available', w / 2, h / 2);
+        return;
+    }
+
+    var sorted = metrics.slice().sort(function(a, b) { return a.timestamp - b.timestamp; });
+    var padL = 60, padR = 20, padT = 20, padB = 40;
+    var plotW = w - padL - padR;
+    var plotH = h - padT - padB;
+
+    var latValues = sorted.map(function(m) { return m.latency_ms; });
+    var maxLat = Math.max.apply(null, latValues) * 1.2 || 1;
+
+    // Grid
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = 0.5;
+    for (var i = 0; i <= 4; i++) {
+        var y = padT + plotH * (1 - i / 4);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+        ctx.fillStyle = '#999';
+        ctx.font = '10px Archivo, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText((maxLat * i / 4).toFixed(1), padL - 5, y + 3);
+    }
+
+    // Latency line
+    ctx.strokeStyle = '#00D4AA';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    sorted.forEach(function(m, idx) {
+        var x = padL + (idx / (sorted.length - 1 || 1)) * plotW;
+        var y = padT + plotH * (1 - m.latency_ms / maxLat);
+        if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Legend
+    ctx.fillStyle = '#00D4AA';
+    ctx.fillRect(padL, h - 15, 12, 3);
+    ctx.fillStyle = '#666';
+    ctx.font = '11px Archivo, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Latency (ms)', padL + 16, h - 10);
+}
+</script>
+{% endblock %}

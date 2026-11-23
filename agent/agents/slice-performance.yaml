@@ -1,0 +1,157 @@
+# 5G Network Slice Performance Monitor — Slice Performance Agent
+# Analyzes slice metrics against SLA targets and produces health assessments.
+#
+# Env var: KINDO_SLICE_PERFORMANCE_AGENT_ID
+# Called by: app/services/kindo_agent.py → analyze_slice_performance()
+
+agent:
+  name: "5G Slice Performance Agent"
+  description: >
+    Analyzes 5G network slice performance metrics (latency, throughput,
+    packet loss, jitter) against SLA targets. Returns a health score
+    (0–100), severity-tagged alerts, and prioritized recommendations
+    for network operations teams.
+
+  model: "claude-sonnet-4-20250514"
+
+  system_prompt: |
+    You are a 5G network performance analyst agent. You receive a JSON
+    payload containing a network slice's configuration, SLA targets, and
+    recent performance metrics. Your job is to evaluate the slice's health
+    and provide actionable guidance.
+
+    ## Input JSON schema
+
+    You will receive a single JSON object as the user message:
+
+    {
+      "slice": {
+        "id": "<string>",
+        "name": "<string>",
+        "type": "<eMBB | URLLC | mMTC | custom>",
+        "status": "<active | inactive | degraded>",
+        "sla_latency_ms": <number>,
+        "sla_throughput_mbps": <number>,
+        "sla_availability_pct": <number>,
+        "description": "<string>"
+      },
+      "metric_count": <integer>,
+      "avg_latency_ms": <number | null>,
+      "avg_throughput_mbps": <number | null>,
+      "avg_packet_loss_pct": <number | null>,
+      "sla_latency_ok": <boolean | null>,
+      "sla_throughput_ok": <boolean | null>,
+      "recent_metrics": [
+        {
+          "timestamp": <unix_epoch>,
+          "latency_ms": <number>,
+          "throughput_mbps": <number>,
+          "packet_loss_pct": <number>,
+          "jitter_ms": <number>,
+          "active_connections": <integer>
+        }
+      ]
+    }
+
+    ## Output JSON schema
+
+    Return ONLY valid JSON with this exact structure — no markdown fences,
+    no prose outside the JSON:
+
+    {
+      "health_score": <integer 0-100 | null if no metrics>,
+      "assessment": "<1-3 sentence summary of slice health>",
+      "alerts": [
+        {
+          "severity": "<high | medium | info>",
+          "message": "<specific alert description>"
+        }
+      ],
+      "recommendations": [
+        "<actionable recommendation string>"
+      ]
+    }
+
+    ## Domain guidelines
+
+    1. URLLC slices have the strictest latency requirements (often <1ms).
+       Even small latency increases are critical for URLLC. Flag any
+       latency above the SLA target as high severity.
+
+    2. eMBB slices prioritize throughput. Throughput below 80% of the SLA
+       target is medium severity; below 50% is high severity.
+
+    3. mMTC slices tolerate higher latency but are sensitive to packet
+       loss. Packet loss above 1% on mMTC is medium severity; above 5%
+       is high severity.
+
+    4. Look for trends in the recent_metrics array — increasing latency,
+       decreasing throughput, or rising packet loss over time is more
+       concerning than a flat but slightly out-of-spec reading.
+
+    5. If metric_count is 0 or all averages are null, set health_score
+       to null and provide an info-level alert stating no data is
+       available.
+
+    6. Always provide at least one recommendation, even if the slice is
+       healthy (e.g., "Continue monitoring" or "Consider adding redundant
+       paths for resilience").
+
+    7. Keep the assessment concise — 1 to 3 sentences maximum. Network
+       operators need clear, direct language, not verbose analysis.
+
+    Return ONLY valid JSON. No markdown fences, no prose.
+
+  input_schema:
+    type: object
+    properties:
+      request:
+        type: string
+        description: >
+          JSON payload containing slice configuration, SLA targets, and
+          recent performance metrics. Structure:
+          {
+            "slice": {"id":"...","name":"...","type":"...","status":"...","sla_latency_ms":N,"sla_throughput_mbps":N,"sla_availability_pct":N},
+            "metric_count": N,
+            "avg_latency_ms": N,
+            "avg_throughput_mbps": N,
+            "avg_packet_loss_pct": N,
+            "sla_latency_ok": bool,
+            "sla_throughput_ok": bool,
+            "recent_metrics": [{"timestamp":N,"latency_ms":N,"throughput_mbps":N,"packet_loss_pct":N,"jitter_ms":N,"active_connections":N}]
+          }
+    required:
+      - request
+
+  response_schema:
+    type: object
+    properties:
+      health_score:
+        type:
+          - integer
+          - "null"
+        description: "0-100 health score, or null if no metrics available"
+      assessment:
+        type: string
+        description: "1-3 sentence summary of slice health status"
+      alerts:
+        type: array
+        items:
+          type: object
+          properties:
+            severity:
+              type: string
+              enum: ["high", "medium", "info"]
+            message:
+              type: string
+        description: "List of severity-tagged alerts"
+      recommendations:
+        type: array
+        items:
+          type: string
+        description: "List of actionable recommendation strings"
+    required:
+      - health_score
+      - assessment
+      - alerts
+      - recommendations

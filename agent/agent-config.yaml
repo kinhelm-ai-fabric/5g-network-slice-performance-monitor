@@ -1,0 +1,12 @@
+version: "1.0"
+project: "5g-network-slice-performance-monitor"
+framework: "flask"
+entry_point: "wsgi:app"
+
+agents:
+  - name: "Slice Performance Agent"
+    config: "agent/agents/slice-performance.yaml"
+    env_var_name: KINDO_SLICE_PERFORMANCE_AGENT_ID
+    overview: >
+      Analyzes 5G network slice performance metrics against SLA targets
+      and returns a health score, alerts, and actionable recommendations.
